@@ -1,0 +1,19 @@
+
+:comment
+GOTO :assemble
+______________________________________________________________________
+
+IMPORTANT: This source requires a modified 64tass.exe that allows the
+tasm @ references to work for substitution inside quotes without using
+the tasm-compatible switch.  It has the following change in macro.c:
+
+        case '@':
+    if (1) { // (arguments.tasmcomp) {  <--- i.e. Always
+        /* text parameter reference */
+______________________________________________________________________
+
+:assemble
+64tass -C --ascii --labels=rodmon64.sym --list=rodmon64.lst --vice-labels-numeric rodmon64.asm -o rodmon64.prg
+
+:docs
+asciidoctorjs MANUAL.ADOC

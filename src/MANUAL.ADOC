@@ -1,0 +1,1259 @@
+
+= RODMON64
+:toc: left
+
+====
+Copyright (C) 1983, 2023 Rodney Rushing
+
+This file is part of RODMON64.
+
+RODMON64 is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+RODMON64 is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+RODMON64. If not, see <https://www.gnu.org/licenses/>.
+====
+
+//--------------------------------------------------------------------------------------
+== INTRODUCTION
+
+
+RODMON64 is yet another machine language monitor/debugger for the Commodore 64 (C=64).  It began its life in 1985 on the VIC-20 as RODMON.  The original motivation was to create my own tool for writing assembly language programs when I did not have easy access to commercially available development tools. I initially wrote a rudimentary line assembler in BASIC, and used it to build enough of RODMON to use it to develop...itself!  What we have here today is the result of disassembling that old code and porting the ideas over to an assembly language implementation which is cross compiled on Microsoft Windows.  This power and convenience has resulted in a few more bells and whistles, and caused the image to grow beyond the 4K size I had originally intended.
+
+RODMON64 may be ported to other 6502 platforms some day, so much of this documentation is being written in a platform independent manner.  Where information applies to a specific platform it will be called out.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|Currently the monitor requires the kernel ROM to be mapped in, therefore, debugging programs that bank switch ROM will likely crash. 
+|===
+
+//--------------------------------------------------------------------------------------
+[[starting]]
+== Starting the Monitor
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|The monitor should be stored in a file with a name that indicates the load address of the monitor such as "RODMON64 $4000".  To start the program load it into memory using secondary address 1, then use the SYS command to execute the monitor.
+
+====
+[subs="replacements"]
+....
+ LOAD"RODMON64 $4000",8,1
+ SEARCHING FOR RODMON64 $4000
+ LOADING
+ READY.
+ SYS16384
+
+ RODMON64
+ &#x2588;
+....
+====
+
+|===
+
+//--------------------------------------------------------------------------------------
+== Document Conventions
+
+
+RODMON64 is command driven.  The commands require certain syntax to control how they operate.  This document section describes the conventions used to illustrate the syntax and how to interpret the command descriptions that use them.
+
+Examples of terminal input and output will be shown inside a box.
+
+====
+[subs="replacements"]
+....
+ ?"THIS IS AN EXAMPLE OF AN EXAMPLE."
+ THIS IS AN EXAMPLE OF AN EXAMPLE.
+ READY.
+ &#x2588;
+....
+====
+
+//--------------------------------------------------------------------------------------
+=== Command Syntax
+
+Command descriptions start with a list of syntax forms that show all the ways to type the command and its parameters.  The syntax forms are followed by a detailed explanation of what the command does.
+
+All commands are submitted to the monitor by pressing the <RETURN> key.  The syntax forms will not include this key in order to make reading less cluttered, but you should assume that it must be pressed to execute a command line unless otherwise indicated in this documentation.
+
+Any spaces used in the syntax forms should be ignored; they are there to make the syntax easier to read.  
+
+If the form prescribes an action or character that is not visible on the screen when typed it will be shown as a descriptive name inside angle brackets.  The following example indicates that the space key is pressed, followed by the return key.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`<SPACE> <RETURN>`
+|===
+
+Some parts of a form may require separation of syntax elements.  A comma (,) will indicate where these elements must be separated so that the monitor can distinguish one element from another.  When actually entering the command this separating character can be almost anything -- a comma, <SPACE>, or any other character that will not be mistaken as part of the preceding or following syntax element. It doesn't have to be the same between all parameters either. For example, given a form of
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`1000 , 1010 , 52`
+|===
+
+
+any of the following are valid:
+
+[cols="1,24", frame=ends, grid=none]
+|===
+||`1000 , 1010 , 52`
+||`1000 <SPACE> 1010 <SPACE> 52`
+||`1000 M 1010 J 52`
+|===
+
+NOTE: This perceived flexibility is an artifact of keeping the monitor code simple to reduce the amount of memory it requires.  It is easiest to always use one delimiter character such as space or comma to prevent confusion.  Choose whatever works best for you.
+
+Some syntax elements are optional, meaning they don't have to be typed.  Parenthesis will be used to indicate these elements.  Parenthesis can be nested so that there are options within an optional element.  This example indicates that "20" is optional, and "30" is optional only if "20" is also entered before it.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`10 ( , 20 ( , 30 ) )`
+|===
+
+A parameter is a syntax element for which the an actual value must be substituted.  Parameters are represented as underlined names that hint at what the parameter is used for.  For example, the following shows a command with a parameter that would be replaced with a starting address.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`M [underline]#start#`
+|===
+
+A parameter that represents a collection of characters that form a sequence of text will be placed inside double quotes without leading or trailing spaces.  The quotes must be entered along with the parameter.  For example, the following represents a filename you provide to the Save command.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`S "[underline]#filename#" , 8`
+|===
+
+If the parameter represents a single character it will be shown as a question mark immediately followed by the parameter name.  For example, the following represents typing any single character.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`[underline]#?char#`
+|===
+
+Some parameters can be entered as many times as you need them on a single command line.  To indicate multiple parameters are allowed, the ellipsis (...) is used to mean "repeat the preceding syntax element if desired."  The following example demonstrates a command that requires at least one value followed by additional optional separator and value, repeated as many times as desired:
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`[underline]#address# : [underline]#value# ( , [underline]#value# ) ...`
+|===
+
+NOTE: There is a technical limit to the number of parameters that can be included on a command line which depends on the internal implementation and the terminal line length limits.
+
+All other characters and punctuation in a form should be typed as shown.
+
+//--------------------------------------------------------------------------------------
+=== Number Formats
+Any time a number parameter is input, the following formats can be used.
+
+[cols="1,24", frame=ends, grid=none]
+|===
+||`[underline]#hexadecimal-number#`
+||`$ [underline]#hexadecimal-number#`
+||`! [underline]#decimal-number#`
+||`% [underline]#binary-number#`
+||`' [underline]#?character#`
+|===
+
+[underline]#hexadecimal-number# is hexadecimal number ranging from -FFFF to +FFFF using digits 0 thru 9 and A thru F.  This is the default radix if no prefix character is supplied.
+
+[underline]#decimal-number# is a decimal number ranging from -65535 to +65535 using digits 0 thru 9.
+
+[underline]#binary-number# is a binary number ranging from -1111111111111111 to +1111111111111111 using digits 1 and 0.
+
+[underline]#?character# is a single character whose value is determined by the character entered and the current character encoding mode.
+
+The number can be preceded by a minus sign (-) to negate the value, and optionally a plus sign (+) for positive values.  Here are examples of valid numbers:
+
+[cols="1,4,20", frame=ends, grid=none]
+|===
+||`$100`|-- Same value as 256 decimal.
+||`!-025`|-- Same value as $e7 hexadecimal.
+||`+00110100111`|-- Same value as $1a7 hexadecimal.
+|===
+
+Numbers are interpreted internally as 16-bit (2-byte) values.  If the command requires an 8-bit (1-byte) value, in most cases the input will be accepted as long as it evaluates to a value that can be represented with only 8 bits.  In some cases an error will occur to warn that a 2-byte value may have unintended consequences.
+
+Some commands can accept 8 or 16-bit values, for example when assembling some instructions the operand could be an 8-bit zero page address or a 16-bit absolute address.  Commands will always assume zero page or bytes for values less than 256 unless the number is entered according to the following rules:
+
+Hexadecimal numbers are forced to 2-byte values when they are entered using 3 or more digits.
+
+[cols="1,4,20", frame=ends, grid=none]
+|===
+||`LDA $50`|-- Use zero page opcode with address $0050.
+||`LDA $050`|-- Use absolute opcode with address $0050.
+||`:50`|-- Change one byte to $50.
+||`:050`|-- Change two consecutive bytes to $50 followed by $00.
+|===
+
+Decimal numbers are forced to 2-byte values when they are entered using 4 or more digits.
+
+[cols="1,4,20", frame=ends, grid=none]
+|===
+||`LDA !255`|-- Use zero page opcode with address $FF.
+||`LDA !0255`|-- Use absolute opcode with address $FF.
+||`:!255`|-- Change one byte to $FF.
+||`:!0255`|-- Change two consecutive bytes to $FF followed by $00.
+|===
+
+Binary numbers are interpreted as 2-byte values when they are entered using 9 or more digits.
+
+[cols="1,4,20", frame=ends, grid=none]
+|===
+||`:00000001`|-- Change one byte to $01.
+||`:000000001`|-- Change two consecutive bytes to $01 followed by $00.
+|===
+
+Note that in all cases you can increase the number of digits without affecting the value of the number by adding any number of leading zeros.
+
+//--------------------------------------------------------------------------------------
+[[resume,Resume Address]]
+=== The Resume Address
+
+When executing commands that dump or modify memory, they may use or set the "resume" address to the address of the byte following the memory that was affected by the command.  Some commands then use the resume address as the memory location to begin with if the command's start address is not supplied.  This allows the use of commands that automatically continue where the previous command left off, operating on a contiguous range of memory, without the user having to know what address to use for each command.  For example, if the <<dump_memory>> command is used to dump 16 bytes (2 lines) of memory contents at address $5000 
+
+====
+[subs="replacements"]
+....
+M5000L2
+5000:40 41 42 43 44 45 46 47  @ABCDEFG
+5008:48 49 4A 4B 4C 4D 4E 4F  HIJKLMNO
+&#x2588;
+....
+====
+
+the next 16 bytes at address $5010 can be dumped by using the command again without specifying a start address.
+
+====
+[subs="replacements"]
+....
+ML2
+5010:50 51 52 53 54 55 56 57  PQRSTUVW
+5018:58 59 5A 30 31 32 33 34  XYZ01234
+&#x2588;
+....
+====
+
+There is only one resume address so a different command can be used to resume from a previous command, such as assembling an instruction and editing the bytes the follow it.
+
+Commands which use or set the resume address will be marked with [RESUMABLE].
+
+//--------------------------------------------------------------------------------------
+== Command Descriptions
+
+//--------------------------------------------------------------------------------------
+[[assemble,Assemble]]
+=== <SPACE> &nbsp;&nbsp; Assemble
+[text-align right]+++[RESUMABLE]+++
+
+Assembles a 6502 instruction into memory.
+
+[cols="1,10,14", frame=ends, grid=none]
+|===
+||`&lt;SPACE&gt; [underline]#instruction# ( ; [underline]#remark# )`|-- Assemble at resume address.
+||`[underline]#address# &lt;SPACE&gt; [underline]#instruction# ( ; [underline]#remark# )`|-- Assemble at [underline]#address#.
+|===
+
+[underline]#address# specifies the memory address where the first byte, the opcode, of the instruction will be placed.  If [underline]#address# is not provided the opcode will be placed at the current <<resume>>.
+
+[underline]#instruction# is a 6502 instruction in standard mnemonic assembler format.  When specifying address operands for instructions which have both absolute and zero page addressing mode opcodes, the number of digits entered will determine which opcode is used as described in the <<_number_formats>> section.
+
+[underline]#remark# is an optional comment that is ignored.  This is used to display memory contents in unassembled output, and can be used for documenting monitor input scripts.
+
+When the command completes, the <<resume>> is set to the address of the byte following the assembled instruction.
+
+//--------------------------------------------------------------------------------------
+[[about,About]]
+=== ? &nbsp;&nbsp; About
+
+Displays information about the current state of the monitor.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||?
+|===
+
+The command produces output similar to the following.
+
+====
+[subs="replacements"]
+....
+RODMON64 \(C) 1983, 2023 RODNEY RUSHING
+
+MON CODE:    4000-59FF (!6656)
+MON DATA:    5A00-5D66 (!871)
+MON RAM:     5D67-5DD1 (!107)
+CHAR MODE:   PETSCII
+UNOFFICIAL:  ON
+CODE BYTES:  ON
+&#x2588;
+....
+====
+
+[cols="1,11", frame=none, grid=none]
+|===
+|MON CODE:
+|The hexadecimal memory range and decimal size used by the monitor CODE section.  See <<new_home>> for a description of this memory region.
+|MON DATA:
+|The hexadecimal memory range and decimal size used by the monitor read-only data section.  See <<new_home>> for a description of this memory region.
+|MON BSS:
+|The hexadecimal memory range and decimal size used by the monitor read-write data reserve (not including zero page memory).  See <<new_home>> for a description of this memory region.
+|CHAR MODE:
+|The current character encoding mode for dumps.  See the <<terminal>> and <<alternate>> commands.
+|UNOFFICIAL:
+|Shows if unofficial instructions are enabled.  See the <<uno_on>> and <<uno_off>> commands.
+|CODE BYTES:
+|Shows if code bytes are enabled in unassembly dumps.  See the <<coby_on>> and <<coby_off>> commands.
+|===
+
+//--------------------------------------------------------------------------------------
+[[remark_command,Remark]]
+=== ; &nbsp;&nbsp; Remark
+
+Does nothing.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`; ( [underline]#remark# )`
+|===
+
+[underline]#remark# is any information that can be typed.  This can be useful for scripting monitor commands.
+
+//--------------------------------------------------------------------------------------
+[[coby_on,Enable Code Bytes]]
+=== ( &nbsp;&nbsp; Enable Code Bytes
+
+Enables unassembly code bytes.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`(`
+|===
+
+When unassembling, the bytes representing each instruction will be displayed.  The output is formatted so that it can be edited using the <<coby_edit>> command.  Code bytes can be disabled with the <<coby_off>> command.
+ 
+//--------------------------------------------------------------------------------------
+[[coby_off,Disable Code Bytes]]
+=== ) &nbsp;&nbsp; Disable Code Bytes
+
+Disables unassembly code bytes.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`)`
+|===
+
+When unassembling, bytes representing each instruction will not be displayed.  Code bytes can be re-enabled with the <<coby_on>> command.
+
+//--------------------------------------------------------------------------------------
+[[terminal,Terminal Characters]]
+=== < &nbsp;&nbsp; Terminal Characters
+
+Selects the terminal character mode.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`<`
+|===
+
+When dumping characters, the platform's terminal encoding is used.
+
+Terminal encoding is intended to represent whatever encoding is used natively by the platform for character I/O service routines; this is usually the character set used by the monitor command interface.  Control codes must be represented by a visible character; preferably, these characters will be distinguishable as the respective control code using special characters and/or display attributes.
+
+Alternate encoding is another mapping supported by the platform such as the video character generator encoding.  Unused character codes are preferably distinguished using special display attributes.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|The terminal encoding is PETSCII.  The alternate encoding is character ROM mapping which RODMON64 refers to as display "poke codes".  See the _Commodore 64 Programmer's Reference Guide_ sections _ASCII and CHR$ Codes_ and _Screen Display Codes_. 
+|===
+
+//--------------------------------------------------------------------------------------
+[[alternate,Alternate Characters]]
+=== > &nbsp;&nbsp; Alternate Characters
+
+Selects the alternate character mode.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`>`
+|===
+
+When dumping characters, the platform's alternate encoding is used.  See <<terminal>> for an explaination of encodings.
+
+//--------------------------------------------------------------------------------------
+[[uno_on, Enable Unofficial]]
+=== [ &nbsp;&nbsp; Enable Unofficial
+
+Enables unofficial instructions.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`[`
+|===
+
+Unofficial instructions are shown when unassembling, and allowed as input when assembling.  See <<uno>> for a list of accepted instructions.  Use the <<uno_off>> command to disable unofficial instructions.
+
+//--------------------------------------------------------------------------------------
+[[uno_off, Disable Unofficial]]
+=== ] &nbsp;&nbsp; Disable Unofficial
+
+Disables unofficial instructions.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`]`
+|===
+
+Unofficial instructions are unassembled as a question mark (?), and not allowed as input when assembling.  The unofficial addressing modes are still honored when unassembling in order to predict how the program counter will advance if they are executed.  Use the <<uno_on>> command to enable unofficial instructions.
+
+//--------------------------------------------------------------------------------------
+[[calc_command,Calculator]]
+=== + &nbsp;&nbsp; Calculator
+
+Calculate and show numbers in decimal, hexadecimal and binary.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`[underline]#number# +`|-- Convert.
+||`[underline]#first# + [underline]#second#`|-- Calculate and convert sum and difference.
+|===
+
+With only one parameter, the command displays [underline]#number# in decimal, hexadecimal and binary.  With two parameters it displays the result of [underline]#first# + [underline]#second# and [underline]#first# - [underline]#second#, in decimal, hexadecimal and binary.
+
+//--------------------------------------------------------------------------------------
+=== : &nbsp;&nbsp; Edit Memory
+[[edit_memory,Edit Memory]]
+[text-align right]+++[RESUMABLE]+++
+
+Places a sequence of 1 or 2-byte values into memory using number inputs.
+
+[cols="1,10,14", frame=ends, grid=rows]
+|===
+||`: [underline]#value# ( , [underline]#value# ... )`|Change memory starting at <<resume>>.
+||`[underline]#address# : [underline]#value# ( , [underline]#value# ... )`|Change memory starting at [underline]#address#.
+|===
+
+[underline]#address# specifies the memory address where the first byte of data will be placed.  If [underline]#address# is not provided the first byte will be placed at the current <<resume>>.
+
+[underline]#value# can be 8 or 16 bits.  Values larger than 8 bits are placed into memory with the least significant byte first.
+
+After memory has been modified, a memory dump is performed to display enough lines to include all memory locations that were changed.  When the command completes, the <<resume>> is set to the address of the byte following the last byte dumped.
+
+//--------------------------------------------------------------------------------------
+[[edit_registers,Edit Registers]]
+=== * &nbsp;&nbsp; Edit Registers
+
+Sets the monitor’s CPU shadow registers.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`* [underline]#program-counter# , [underline]#int-address# , [underline]#accumulator# , [underline]#x# , [underline]#y# , [underline]#stack-pointer# , [underline]#n# [underline]#v# ? [underline]#b# [underline]#d# [underline]#i# [underline]#z# [underline]#c#`
+|===
+
+These values are loaded into the CPU when execution is invoked from the monitor, with commands such as Go,  Walk, and Jump. See the <<display_registers>> command for a description of each value.
+
+The '?' status flag can be input as 1 or 0 but is not used.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|The easiest way to use this command is to use the <<display_registers>> command to display the registers and then edit the resulting output. 
+|===
+
+
+//--------------------------------------------------------------------------------------
+[[coby_edit,Edit or Assemble]]
+=== – &nbsp;&nbsp; Edit or Assemble
+
+Combines the Edit Memory command with the Assemble command.
+
+[text-align right]+++[RESUMABLE]+++
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`– <SPACE> ( [underline]#byte# ( , [underline]#byte# ( , [underline]#byte# ) ) ) ( [underline]#instruction# ) ( ; [underline]#remark# )`
+||`[underline]#address# – <SPACE> ( [underline]#byte# ( , [underline]#byte# ( , [underline]#byte# ) ) ) ( [underline]#instruction# ) ( ; [underline]#remark# )`
+|===
+
+Up to 3 byte values are input and compared with the respective memory bytes at target [underline]#address#, or the <<resume,resume address>> if an address parameter is not entered.  If any bytes differ with memory, they are changed to match the input.  If all bytes match or the first parameter is not a valid number, then the optional [underline]#instruction# is assembled at the target address.  If all bytes match and there is no instruction provided then the command does nothing.  If memory has been changed, the target address is unassembled for visual verification.
+
+The primary use for this command is to edit unassembly that includes code bytes; this kind of output already has the command format printed on the screen for you.  For example:
+
+====
+[subs="replacements"]
+....
+>
+U1000L2
+1000-A9 52     LDA #$52    ; !82 ‘R
+1002-60        RTS
+&#x2588;
+....
+====
+
+With this output you can edit either the instructions or the code bytes in memory directly.  Note that in either case you are potentially invalidating the data or instruction immediately following the entered instruction.  For example, if you change the above 2-byte “LDA #” instruction to a 1-byte “INX”, the next instruction will now be opcode $52, an unofficial "JAM" instruction, at address $1001 which previously was the operand of the "LDA #".
+
+//--------------------------------------------------------------------------------------
+[[breakpoints,Breakpoints]]
+=== . &nbsp;&nbsp; Breakpoints
+
+Modifies and lists breakpoints.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`.`|List all breakpoints.
+||`. /`|Clear all breakpoints.
+||`[underline]#number# . /`|Clear a breakpoint.
+||`[underline]#number# . [underline]#address#`|Set a breakpoint.
+|===
+
+If no breakpoint number is specified, the command applies to all breakpoints, otherwise the command applies only to a specified breakpoint numbered 1 through 9.  To list all breakpoints type the command with no parameters.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|Each breakpoint is displayed in breakpoint set command format so that the screen editor can be used to position the cursor over the lines, edit, and set by pressing <RETURN>. 
+|===
+
+To set a breakpoint, specify the breakpoint [underline]#number# and the [underline]#address# to place the breakpoint at.
+
+To clear a specified or all breakpoints, follow the command character immediately with a slash ('/') at the end of the command.
+
+//--------------------------------------------------------------------------------------
+[[go,Go]]
+=== G &nbsp;&nbsp; Go (to machine code)
+
+Begins execution of machine code.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`G`|Execute at PC address.
+||`G [underline]#start#`|Execute at [underline]#start#.
+||`G , [underline]#stop#`|Execute at PC address and break at [underline]#stop#.
+||`G [underline]#start# , [underline]#stop#`|Execute at [underline]#start# and break at [underline]#stop#.
+|===
+
+If [underline]#start# is provided, execution begins at that address, otherwise execution starts at the address in the program counter shadow register as shown by the <<display_registers>> command.  If a [underline]#stop# address is provided, execution will break if the CPU attempts to execute the instruction at that address.  A "BRK" instruction or <<breakpoints,breakpoint>> will also return control back to the monitor.
+
+Before starting execution the shadow registers as shown by the <<display_registers>> command are loaded into the CPU.  See <<exe_internals>> for more details on how machine code is executed.
+
+//--------------------------------------------------------------------------------------
+[[hunt,Hunt]]
+=== H &nbsp;&nbsp; Hunt (for pattern)
+
+Searches a region of memory for all occurrences of a pattern of 1 or more byte values.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`H [underline]#start# , [underline]#end# , [underline]#byte# ( , [underline]#byte# ) ...`
+|===
+
+The address of the first and last memory locations to search are specified by the [underline]#start# and [underline]#end# parameters.  A sequence of [underline]#byte# values specify the pattern to search for.  The output is a list of hexadecimal addresses where the specified pattern starts even if the found patterns overlap.  For example, the following command searches memory from $A000 to $A100 and shows the addresses where the pattern $52, $4F, $44 starts in that range.
+
+====
+[subs="replacements"]
+....
+HA000 A100 52 4F 44 <RETURN>
+A084 A0BA A0C5 A0CA A0CF A0D6 A0DA A0DC
+A0F3 A0FF
+&#x2588;
+....
+====
+
+Notice that the last pattern found extends outside the search range: $A0FF, $A100, $A101.  This is because the pattern starts within the range.
+
+//--------------------------------------------------------------------------------------
+[[initialize,Initialize]]
+=== I &nbsp;&nbsp; Initialize (fill) Memory
+
+Fills a region of memory with a repeating pattern of byte values.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`I [underline]#start# , [underline]#end# , [underline]#byte# ( , [underline]#byte# ... )`
+|===
+
+The address of the first and last memory locations to modify are specified by the [underline]#start# and [underline]#end# parameters.  A sequence of [underline]#byte# values specify the pattern to fill with.  Each pattern byte is placed into a successive memory address.  If each pattern byte has been placed and the end of the range has not been reached, the values start from the beginning of the pattern again.  If the range ends before the all bytes of the pattern have been placed, the memory range ends with a partial pattern. For example, to fill addresses $4000 through $4006 with the characters for "ROD":
+
+====
+[subs="replacements"]
+....
+I4000 4006 52 4F 44
+M4000
+4000:52 4F 44 52 4F 44 52 2E  RODRODR.
+&#x2588;
+....
+====
+
+//--------------------------------------------------------------------------------------
+[[jump,Jump]]
+=== J &nbsp;&nbsp; Jump (step over)
+
+Executes one instruction and does not enter subroutines.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`J`|Execute one instruction at shadow PC address.
+||`J [underline]#address#`|Execute one instruction at [underline]#address#.
+|===
+
+Executes one instruction at [underline]#address# or at the current <<resume>> and sets the PC shadow register value to the address of the next instruction that will be executed.  If the instruction was "JSR" (Jump to Sub-Routine), the subroutine is executed and the next instruction will be the instruction following the "JSR".
+
+The monitor achieves this single instruction execution behavior by setting internal breakpoints on the address where control should be returned to the monitor.  If a subroutine does not execute an "RTS" (ReTurn from Sub-routine) instruction, or modifies the stack so that the function does not return to the address following the "JSR", the monitor may never receive control again.
+
+If a "JMP" target is located in read-only memory, the monitor will prompt what to do:
+
+====
+[subs="replacements"]
+....
+J
+[G]O? [R]TS? &#X2588;
+....
+====
+
+* Press <RETURN> to abort the command.
+* Press "G" to execute as if using the <<go>> command.
+* Press "R" to break at the location on the top of the stack.  (If that too is in ROM a <<Go>> is effectively issued.)
+
+//--------------------------------------------------------------------------------------
+[[dump_chars,Dump Characters]]
+=== K &nbsp;&nbsp; Dump Characters
+[text-align right]+++[RESUMABLE]+++
+
+Displays the contents of memory as characters.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`K`|Start at <<resume>>, half screen.
+||`K L`|Start at <<resume>>, full screen.
+||`K L [underline]#count#`|Start at <<resume>>, number of lines.
+||`K [underline]#start#`|Start at address, one line.
+||`K [underline]#start# , [underline]#end#`|Start at address, to line containing end.
+||`K [underline]#start# L`|Start at address, full screen.
+||`K [underline]#start# L [underline]#count#`|Start at address, number of lines.
+|===
+
+Operation begins at address [underline]#start# if specified, otherwise it starts at <<resume>>.  Bytes are read from memory in succession and displayed as characters, using the current character encoding mode, in fixed length lines. If [underline]#end# is specified then successive lines are output until the contents of address [underline]#end# have been displayed. When 'L' is used, [underline]#count# number of lines are output if specified, or a whole screen of output if [underline]#count# is not specified. A half screen of output is produced if no parameters are given.
+
+Characters are displayed in one of two encoding modes.  Terminal encoding is intended to show how characters will appear if you print the memory contents using the system's terminal I/O routines.  Alternate encoding is intended to show how characters will appear when put directly into the video frame buffer.  Use the <<terminal>> and <<alternate>> commands to control which encoding is used.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|The terminal encoding is PETSCII.  All characters except <RETURN> ($0D) and <SHIFT-RETURN> ($8D) are displayed in “quote mode” so that control characters appear as reverse characters instead of performing their actual function. The return characters are displayed in reverse as “m” and shifted “m” respectively. The alternate encoding is frame buffer "poke codes".  Poke codes in the range 0-127 are displayed as normal characters, and codes 128-255 are displayed as reverse characters. 
+|===
+
+//--------------------------------------------------------------------------------------
+[[load]]
+=== L &nbsp;&nbsp; Load Memory
+
+Loads memory from a storage device.  Parameters for this command are platform dependent.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|
+
+[cols="1,24", frame=ends, grid=rows]
+!===
+!
+!`L "[underline]#filename#" , [underline]#device# ( , [underline]#address# )`
+!===
+
+[underline]#filename# is the name of the file that memory will be loaded from.
+
+[underline]#device# specifies the number of the device that the file is located on.
+
+[underline]#address# specifies an optional memory address to load the file to.  If not specified the file is loaded at the address it was originally saved from.
+|===
+
+
+//--------------------------------------------------------------------------------------
+=== M &nbsp;&nbsp; Dump Memory
+[[dump_memory,Dump Memory]]
+[text-align right]+++[RESUMABLE]+++
+
+Displays the contents of memory as hexadecimal bytes and characters.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`M`|Start at <<resume>>, half screen.
+||`M L`|Start at <<resume>>, full screen.
+||`M L [underline]#count#`|Start at <<resume>>, number of lines.
+||`M [underline]#start#`|Start at address, one line.
+||`M [underline]#start# , [underline]#end#`|Start at address, to line containing end.
+||`M [underline]#start# L`|Start at address, full screen.
+||`M [underline]#start# L [underline]#count#`|Start at address, number of lines.
+|===
+
+
+Operation begins at address [underline]#start# if specified, otherwise it starts at <<resume>>.  Bytes are read from memory in succession and displayed as hexadecimal bytes in fixed length lines. If [underline]#end# is specified then successive lines are output until the contents of address [underline]#end# have been displayed. When 'L' is used, [underline]#count# number of lines are output if specified, or a whole screen of output if [underline]#count# is not specified. A half screen of output is produced if no parameters are given.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|Each line is displayed in <<edit_memory>> command format so that the screen editor can be used to position the cursor over the lines, edit, and change memory by pressing <RETURN>.  For example, displaying the contents of memory address $5000 through $5023.
+
+====
+[subs="replacements"]
+....
+M5000 5023
+5000:40 41 42 43 44 45 46 47  @ABCDEFG
+5008:48 49 4A 4B 4C 4D 4E 4F  HIJKLMNO
+5010:50 51 52 53 54 55 56 57  PQRSTUVW
+5018:58 59 5A 30 31 32 33 34  XYZ01234
+5020:35 36 37 38 39 21 22 23  56789!"#
+&#x2588;
+....
+====
+
+You can navigate the cursor over any of these bytes, modify them, and press <RETURN> to change the respective memory locations.
+
+Characters are displayed as described by the <<dump_chars>> command.  
+|===
+
+
+
+//--------------------------------------------------------------------------------------
+[[new_home,New Monitor Home]]
+=== N &nbsp;&nbsp; New Monitor Home
+
+Makes a copy of the monitor in memory.
+
+[cols="1,10,14", frame=ends, grid=rows]
+|===
+||`N [underline]#code-base#`|Relocate CODE+DATA+BSS together.
+||`N [underline]#code-base# , [underline]#bss-base#`|Relocate CODE+DATA separate from BSS.
+|===
+
+The monitor uses four regions of memory with distinct purposes.  The CODE section contains the monitor program instructions.  The DATA section contains program data that must not be modified (constant data).  The BSS section is read/write memory for the monitor's working variables.  The monitor's zero page reserve is similar to the BSS section, but resides somewhere at a fixed location in the first 256 bytes of memory as defined by the platform.
+
+        :             :         :             :
+        +-------------+         +-------------+
+        |     BSS     |         |     DATA    |
+        +-------------+         +---       ---+
+        |     DATA    |         |     CODE    |
+        +---       ---+         +-------------+
+        |     CODE    |                :
+        +-------------+         +-------------+
+               :                |     BSS     |
+               :                +-------------+
+               :                       :
+        +-------------+         +-------------+
+        |  ZERO PAGE  |         |  ZERO PAGE  |
+        +-------------+         +-------------+
+
+You may want move these sections to different areas of memory in order to accomodate a program that is being debugged, or to put the monitor in ROM.  The zero page reserve cannot be changed.  The CODE and DATA sections can be relocated but must always move together.  The BSS reserve can be relocated independently.
+
+[underline]#code-base# specifies the address where the new copy of the CODE+DATA section will start.  If specified, [underline]#bss-base# is the address where the new BSS reserve will start, otherwise it immediately follows the DATA section.  The size of the sections can be determined for planning and saving by using the <<about>> command.  Only the CODE+DATA sections should be saved to storage or stored in ROM.
+
+The new monitor is started by calling the [underline]#code-base# address.  
+
+//--------------------------------------------------------------------------------------
+[[adjust_operands,Adjust Address Operands]]
+=== O &nbsp;&nbsp; Adjust Operands
+
+Changes select address operands in a region of code so that they are relative to a specified base address.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`O [underline]#start# , [underline]#end# , [underline]#base# , [underline]#limit# , [underline]#new-base#`
+|===
+
+Starting with address [underline]#start#, memory is internally unassembled.  If the instruction has an address operand that falls within the range [underline]#base# to [underline]#limit# the operand is modified so that the new value is the same distance from [underline]#new-base# as it was from [underline]#base#.  This repeats for each consecutive instruction thereafter until the opcode address is greater than address [underline]#end#.
+
+This operation is for use in cases where a region of memory that code is dependent on has moved.  For example, the following code uses addresses in page 2:
+
+====
+[subs="replacements"]
+....
+U1000L4
+1000-AD 03 02  LDA $0203   ; $33 '3
+1003-4D 14 02  EOR $0214   ; $2C ',
+1006-8D EA 02  STA $02EA   ; $00 '@
+1009-EE AA 07  INC $07AA   ; $20 '
+100C-EA        NOP
+&#x2588;
+....
+====
+
+To change these instructions to use page 9 use a command that might be stated as "scan instructions from $1000 to $100C and change address operands in the range $200 to $2FF into $900 to $9FF respectively."
+
+====
+[subs="replacements"]
+....
+O1000 100C 200 2FF 900
+U1000L4
+1000-AD 03 09  LDA $0903   ; $FF '.
+1003-4D 14 09  EOR $0914   ; $FF '.
+1006-8D EA 09  STA $09EA   ; $FF '.
+1009-EE AA 07  INC $07AA   ; $20 '
+100C-EA        NOP
+&#x2588;
+....
+====
+
+If the instruction uses a zero page address operand, a new base could cause the address to be out of page zero.  In this case the command will stop with an error and indicate the address of the conflict.
+
+WARNING: Memory is modified until complete or an error occurs, so an error potentially leaves memory partial changed.  It is a good idea to backup code to a storage device before using this command. +
+ +
+This command should only be used on a range of memory that conforms to the following characteristics: +
+ +
+1. The range must only contains contiguous instructions; no data or unused bytes.  It won't be able to distinguish those from an instruction. +
+ +
+2. Address operands must not contain embedded data or instructions.  These will potentially be interpreted as an address and changed when not desired.
+
+//--------------------------------------------------------------------------------------
+[[display_registers,Display Registers]]
+=== R &nbsp;&nbsp; Display Registers
+
+Displays the monitor's current CPU shadow state.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`R`
+|===
+
+Shadow registers are the values that the CPU will receive when machine language execution is started using <<go>>, <<walk>>, and <<jump>> commands.  The registers also reflect the state of the CPU when a breakpoint is encountered.  Command output includes a heading and the state values as in this example:
+
+====
+[subs="replacements"]
+....
+R
+  PC   IR  A  X  Y   SP  NV?BDIZC
+*1000 8128 00 00 00 01FE 00100000
+&#x2588;
+....
+====
+
+[cols="1,2,22", frame=none, grid=none]
+|===
+||`PC`|Program Counter -- The address where the CPU will begin executing when no start parameter is provided to the <<go>>, <<walk>>, and <<jump>> commands.  When control returns to the monitor this value will be set to the address where execution stopped.  For breakpoints, the addressed instruction has not executed yet.  If control returns because of a coded BRK instruction this will be the address of the BRK that was executed.
+||`IR`|Maskable Interrupt Routine Address -- TBD
+||`A`|The 6502 Accumulator contents.
+||`X`|The 6502 X register contents.
+||`Y`|The 6502 Y register contents.
+||`SP`|The effective address of the 6502 stack pointer. 
+||`N`|The 6502 sign flag.
+||`V`|The 6502 overflow flag.
+||`?`|Unused 6502 status bit.
+||`B`|The 6502 break flag.
+||`D`|The 6502 BCD mode flag.
+||`I`|The 6502 maskable interrupt disable flag.
+||`Z`|The 6502 zero flag.
+||`C`|The 6502 carry flag.
+|===
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|The register values are displayed in <<edit_registers>> command format so that the screen editor can be used to position the cursor over the line, edit, and set by pressing <RETURN>.
+|===
+
+//--------------------------------------------------------------------------------------
+[[save, Save]]
+=== S &nbsp;&nbsp; Save Memory
+
+Saves memory contents to a storage device.  Parameters for this command are platform dependent.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|
+
+[cols="1,24", frame=ends, grid=rows]
+!===
+!!`S "[underline]#filename#" , [underline]#device# , [underline]#first# , [underline]#last#`
+!===
+
+[underline]#filename# is the name of the file that memory will be saved to.  Use Commodore conventions for specifying the file name.
+
+[underline]#device# specifies the number of the device that will be saved to.
+
+[underline]#first# and [underline]#last# specify the range of memory that will be written to the device.
+|===
+
+//--------------------------------------------------------------------------------------
+[[transfer,Transfer Memory]]
+=== T &nbsp;&nbsp; Transfer (copy)
+[cols="1", frame=none, grid=none]
+
+Copies a region of memory to another region.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||`T [underline]#first# , [underline]#last# , [underline]#destination#`
+|===
+
+The [underline]#first# and [underline]#last# parameters specify the source range of addresses to copy from and [underline]#destination# specifies the first memory location of the range where the copied bytes will be written to.  The source and destination ranges may overlap.
+
+//--------------------------------------------------------------------------------------
+[[unassemble,Unassemble]]
+=== U &nbsp;&nbsp; Unassemble
+[text-align right]+++[RESUMABLE]+++
+
+Displays the contents of memory as 6502 assembly instructions.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`U`|Start at <<resume>>, half screen.
+||`U L`|Start at <<resume>>, full screen.
+||`U L [underline]#count#`|Start at <<resume>>, number of lines.
+||`U [underline]#start#`|Start at address, one line.
+||`U [underline]#start# , [underline]#end#`|Start at address, to line containing end.
+||`U [underline]#start# L`|Start at address, full screen.
+||`U [underline]#start# L [underline]#count#`|Start at address, number of lines.
+|===
+
+Operation begins at address [underline]#start# if specified, otherwise it starts at <<resume>>.  Bytes are read from memory, decoded, and displayed as assembly instructions. If [underline]#end# is specified then successive lines are output until the next instruction is at an address greater than [underline]#end#. When 'L' is used, [underline]#count# number of lines are output if specified, or a whole screen of output if [underline]#count# is not specified. A half screen of output is produced if no parameters are given.
+
+If applicable, the output also includes a remark showing either a value that is "peeked" at the operand address, or the decimal and character equivalents of immediate values.  This shows what data the instruction is about to operate on.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+|Each line is displayed in <<assemble>> command format so that the screen editor can be used to position the cursor over the lines, edit, and change memory by pressing <RETURN>. +
+ +
+ See <<coby_on>>, <<coby_off>>, <<uno_on>>, <<uno_off>>, <<terminal>>, and <<alternate>> commands that affect the output of assembly output.
+|===
+
+//--------------------------------------------------------------------------------------
+[[verify,Verify]]
+=== V &nbsp;&nbsp; Verify Memory
+
+Compares memory to data on a storage device.  Parameters for this command are platform dependent.
+
+This is used primarly for tape storage.  The data stored on the device is compared with the memory it was original saved from and generates a verify error if any byte differs.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|
+
+[cols="1,24", frame=ends, grid=rows]
+!===
+!!`V "[underline]#filename#" , [underline]#device#`
+!===
+
+[underline]#filename# is the name of the file that memory will be compared to.
+
+[underline]#device# specifies the number of the device that the file is located on.
+|===
+
+//--------------------------------------------------------------------------------------
+[[walk,Walk]]
+=== W &nbsp;&nbsp; Walk (step into)
+
+Executes one instruction and enters subroutines.
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`W`|Execute one instruction at <<resume>>.
+||`W [underline]#address#`|Execute one instruction at [underline]#address#.
+|===
+
+Executes one instruction at [underline]#address# or at the current <<resume>> and sets the PC shadow register value to the address of the next instruction that will be executed.  If the instruction was "JSR" (Jump to Sub-Routine), the next instruction will be the first instruction of the subroutine.
+
+If a "JSR" target is located in read-only memory such as ROM, the monitor will perform a <<jump>> instead.
+
+If a "JMP" target is located in read-only memory, the monitor will prompt what to do:
+
+====
+[subs="replacements"]
+....
+W
+[G]O? [R]TS? &#X2588;
+....
+====
+
+* Press <RETURN> to abort the command.
+* Press "G" to execute as if using the <<go>> command.
+* Press "R" to break at the location on the top of the stack.  (If that too is in ROM a <<Go>> is effectively issued.)
+
+//--------------------------------------------------------------------------------------
+=== X &nbsp;&nbsp; Exit Monitor
+
+Exits the monitor.
+
+[cols="1,24", frame=ends, grid=rows]
+|===
+||X
+|===
+
+The monitor restores the stack pointer and zero page reserve to the state they were in before the monitor was started and returns to the code that called the monitor.
+
+== Appendix
+
+=== Error Messages
+
+[cols="1,6,18", frame=ends, grid=rows]
+|===
+||`?BUG`|Internal monitor error.
+||`?BYT`|A value larger than 8-bits was input when a byte value was expected.
+||`?CMD`|Unrecognized command.
+||`?DUP`|Duplicate breakpoint not set.
+||`?I/O`|An error occurred accessing the storage device.
+||`?INS`|Unrecognized instruction.
+||`?MOD`|Unrecognized or invalid addressing mode.
+||`?RNG`|A value or pair of values are out of range for the command.
+||`?SYN`|Input does not match any of the command's syntax forms.
+||`?UNO`|An unofficial instruction was used while unofficial instructions are disabled.
+||`?VAL`|A value was not found when expected.
+||`?VER`|Memory did not match the storage file.
+||`?ZPG`|A value or result is not zero page as required.
+|===
+
+[[visualbrk,Visual Breakpoint Indicator]]
+=== Visual Breakpoint Indicators
+
+Breakpoints and "BRK" instructions cause a highly visible indicator in the monitor.  This is useful if you are running a test and cooking breakfast at the same time.
+
+If a user breakpoint is already set where a step would also return control, the step will take priority so that there is no visual indicator of a "BRK".  If a step is executed on a coded "BRK" instruction, the coded "BRK" will take priority and indicate it visually.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|* A red border indicates that a coded "BRK" instruction was executed. +
+* A yellow border indicates that a user breakpoint was encountered.
+|===
+
+[[exe_internals,Execution Internals]]
+=== Execution Internals
+
+Sometimes the internal implementation may conflict with what a machine code program is doing and cause strange things to happen.  This explains some nuances when executing machine code to help detect those incidents.  When the <<go>>, <<walk>>, and <<jump>> instructions are executed the following occur:
+
+* BRK instructions are placed at user breakpoint locations, and locations where a step should return control to the monitor.
+* The monitor's zero page reserve is restored to the data it had before the monitor last received control.
+* The breakpoint handler is installed.
+* The CPU registers are loaded from the monitor's CPU shadow registers.
+* The monitor jumps to the target machine code address.
+
+When control returns to the monitor, the following occur:
+
+* The CPU registers are copied to the monitor's CPU shadow registers.
+* Data in the zero page reserve is backed up.
+* A visual indicator is set according to the description in <<visualbrk>>.
+* Breakpoint and step point memory locations are restored to their original contents.
+* The monitor CPU shadow state is output to the screen using platform character I/O routines.
+* Control jumps to the monitor's command input routine.
+
+[[relocate]]
+=== Relocating and Saving a New Monitor
+
+==== A Practical Example
+
+This is an example process of creating a relocated copy of the monitor and saving it to storage.  For this example, the monitor is loaded at $4000 and being moved to $8000 with the BSS reserve immediately following CODE and DATA.
+
+[start=1]
+. Relocate the monitor to $8000 using the <<new_home>> command.
+====
+[subs="replacements"]
+....
+ N8000
+ YOU SURE? Y
+ 123
+ &#x2588;
+....
+====
+
+[start=2]
+. Exit the monitor and start the new monitor.
+====
+[subs="replacements"]
+....
+ X
+ READY.
+ SYS32768
+ 
+ RODMON64
+ &#x2588;
+....
+====
+
+[start=3]
+. Use the <<about>> command to find the lower and upper address of the CODE+DATA sections.
+====
+[subs="replacements"]
+....
+ RODMON64 \(C) 1983, 2023 RODNEY RUSHING
+
+ MON CODE:    8000-997C (!6525)
+ MON DATA:    997D-9CE2 (!870)
+ MON RAM:     9CE3-9D4D (!107)
+ CHAR MODE:   PETSCII
+ UNOFFICIAL:  ON
+ CODE BYTES:  ON
+ &#x2588;
+....
+====
+
+The CODE+DATA range is $8000 to $9CE2.
+
+[start=4]
+. Save the CODE+DATA to a file.
+
+[cols="1,4", frame=none, grid=rows]
+|===
+|*C=64*
+a|
+====
+[subs="replacements"]
+....
+ S"RODMON64 $8000",8,8000,9CE2
+ SAVING RODMON64 $8000
+ &#x2588;
+....
+====
+|===
+
+==== Commodore 64 $A000 Relocator
+
+The C=64 implementation includes a special function to disable the BASIC ROM and place the monitor there.  To use this, load any base version of the monitor and SYS() the monitor base address plus 3.
+
+====
+[subs="replacements"]
+....
+ READY.
+ LOAD"RODMON64 $8000",8,1
+ 
+ SEARCHING FOR RODMON64 $8000
+ LOADING
+ READY.
+ SYS32768+3
+ 
+ 123
+ RODMON64
+ ?
+ RODMON64 (C) 1983, 2023 RODNEY RUSHING
+ 
+ MON CODE:    A000-B97C (!6525)
+ MON DATA:    B97D-BCE2 (!870)
+ MON RAM:     BCE3-BD4D (!107)
+ CHAR MODE:   PETSCII
+ UNOFFICIAL:  ON
+ CODE BYTES:  ON
+ &#x2588;
+....
+====
+
+[[uno]]
+=== Unofficial Instructions
+
+Details for these opcodes can be found in many other publications.
+
+[%header,cols="1,4,4,4,16", frame=ends, grid=rows]
+|===
+||Instruction|Addressing +
+Mode|Opcode|Description
+||`ANS`|`abs,Y`|$BB|AND SP into A,X,SP
+||`ARR`|`#n`|$6B|AND then ROR
+||`ASC`|`#n`|$0B|AND then SEC
+||`ASR`|`#n`|$4B|AND then LSR
+||`AXS`|`#n`|$CB|AND then SBC
+||`DCP`|`zp`|$C7|DEC then CMP
+|||`zp,X`|$D7|
+|||`abs`|$CF|
+|||`abs,X`|$DF|
+|||`abs,Y`|$DB|
+|||`(zp,X)`|$C3|
+|||`(zp),Y`|$D3|
+||`ISC`|`zp`|$E7|INC then SBC
+|||`zp,X`|$F7|
+|||`abs`|$EF|
+|||`abs,X`|$FF|
+|||`abs,Y`|$FB|
+|||`(zp,X)`|$E3|
+|||`(zp),Y`|$F3|
+||`JAM`||$02|Jam (freeze) CPU
+||||$12|
+||||$22|
+||||$32|
+||||$42|
+||||$52|
+||||$62|
+||||$72|
+||||$92|
+||||$B2|
+||||$D2|
+||||$F2|
+||`LAX`|`zp`|$A7|LDA then TAX
+|||`zp,Y`|$B7|
+|||`abs`|$AF|
+|||`abs,Y`|$BF|
+|||`(zp,X)`|$A3|
+|||`(zp),Y`|$B3|
+||`RLA`|`zp`|$27|ROL then AND
+|||`zp,X`|$37|
+|||`abs`|$2F|
+|||`abs,X`|$3F|
+|||`abs,Y`|$3B|
+|||`(zp,X)`|$23|
+|||`(zp),Y`|$33|
+||`RRA`|`zp`|$67|ROR then ADC
+|||`zp,X`|$77|
+|||`abs`|$6F|
+|||`abs,X`|$7F|
+|||`abs,Y`|$7B|
+|||`(zp,X)`|$63|
+|||`(zp),Y`|$73|
+||`SAX`|`zp`|$87|Store [A AND X]
+|||`zp,Y`|$97|
+|||`abs`|$8F|
+|||`(zp,X)`|$83|
+||`SBN`|`#n`|$EB|SBC then NOP
+||`SHA`|`abs,Y`|$9F|Store A AND X AND abs[15:8]
+|||`(zp),Y`|$93|
+||`SHS`|`abs,Y`|$9B|TAX then TXS then store abs[15:8] AND A
+||`SHX`|`abs,Y`|$9E|Store abs[15:8] AND X
+||`SHY`|`abs,X`|$9C|Store abs[15:8] AND Y
+||`SLO`|`zp`|$07|ASL then ORA
+|||`zp,X`|$17|
+|||`abs`|$0F|
+|||`abs,X`|$1F|
+|||`abs,Y`|$1B|
+|||`(zp,X)`|$03|
+|||`(zp),Y`|$13|
+||`SRE`|`zp`|$47|LSR then EOR
+|||`zp,X`|$57|
+|||`abs`|$4F|
+|||`abs,X`|$5F|
+|||`abs,Y`|$5B|
+|||`(zp,X)`|$43|
+|||`(zp),Y`|$53|
+||`NAP`||$1A|Take a nap (alternate NOP)
+||||$3A|
+||||$5A|
+||||$7A|
+||||$DA|
+||||$FA|
+|||`#n`|$80|
+|||"|$82|
+|||"|$89|
+|||"|$C2|
+|||"|$E2|
+|||`zp`|$04|
+|||"|$44|
+|||"|$64|
+|||`zp,X`|$14|
+|||"|$34|
+|||"|$54|
+|||"|$74|
+|||"|$D4|
+|||"|$F4|
+|||`abs`|$0C|
+|||`abs,X`|$1C|
+|||"|$3C|
+|||"|$5C|
+|||"|$7C|
+|||"|$DC|
+|||"|$FC|
+|===
+
